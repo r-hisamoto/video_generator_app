@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5ch/X コメント抽出・動画生成アプリ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            padding-bottom: 20px;
+        }
+        .header {
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e5e5e5;
+            margin-bottom: 30px;
+        }
+        .step-container {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+        }
+        .step-title {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .preview-container {
+            margin-top: 15px;
+        }
+        .image-preview {
+            width: 150px;
+            height: 100px;
+            object-fit: cover;
+            margin: 5px;
+            border: 1px solid #dee2e6;
+            cursor: pointer;
+        }
+        .image-preview.selected {
+            border: 3px solid #0d6efd;
+        }
+        .audio-preview {
+            width: 100%;
+            margin: 5px 0;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .loading-spinner {
+            width: 3rem;
+            height: 3rem;
+        }
+        .comment-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .comment-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        .voice-selector {
+            margin-top: 5px;
+        }
+        .progress-container {
+            margin-top: 20px;
+        }
+        .filter-buttons {
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="text-center">5ch/X コメント抽出・動画生成アプリ</h1>
+            <p class="text-center text-muted">5chやX(Twitter)のコメントから動画を自動生成</p>
+        </div>
+
+        <!-- ステップ1: URL入力 -->
+        <div class="step-container" id="step1">
+            <h2 class="step-title">ステップ1: URLを入力</h2>
+            <form id="urlForm">
+                <div class="mb-3">
+                    <label for="urlInput" class="form-label">5chスレッドまたはX(Twitter)の投稿URL</label>
+                    <input type="url" class="form-control" id="urlInput" placeholder="https://..." required>
+                </div>
+                <div class="mb-3">
+                    <label for="maxComments" class="form-label">取得するコメント数（最大）</label>
+                    <input type="number" class="form-control" id="maxComments" min="1" max="100" value="20">
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="shortenIntro" checked>
+                    <label class="form-check-label" for="shortenIntro">イントロを自動短縮する（25秒超の場合）</label>
+                </div>
+                <button type="submit" class="btn btn-primary">コメントを抽出</button>
+            </form>
+            <div class="loading" id="loading1">
+                <div class="spinner-border loading-spinner text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>コメントを抽出中...</p>
+            </div>
+        </div>
+
+        <!-- ステップ2: コメント編集・音声合成 -->
+        <div class="step-container" id="step2" style="display: none;">
+            <h2 class="step-title">ステップ2: コメント編集・音声合成</h2>
+            <div class="mb-3">
+                <h4>スレッドタイトル: <span id="threadTitle"></span></h4>
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <strong>イントロ（1コメ）</strong>
+                    </div>
+                    <div class="card-body">
+                        <p id="introText"></p>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="introVoice" class="form-label">話者</label>
+                                <select class="form-select" id="introVoice"></select>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="preview-container" id="introAudioPreview" style="display: none;">
+                                    <audio controls class="audio-preview" id="introAudio"></audio>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <h4>コメント一覧</h4>
+                <div class="mb-3">
+                    <label for="ttsEngine" class="form-label">音声合成エンジン</label>
+                    <select class="form-select" id="ttsEngine">
+                        <option value="openai" selected>OpenAI gpt-4o-mini-tts</option>
+                        <option value="fish_audio">fish.audio</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <button class="btn btn-outline-primary" id="randomizeVoices">話者をランダム割り当て</button>
+                    <button class="btn btn-primary" id="generateSpeech">音声を生成</button>
+                </div>
+                <div class="comment-list" id="commentList"></div>
+            </div>
+            <div class="loading" id="loading2">
+                <div class="spinner-border loading-spinner text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>音声を生成中...</p>
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-secondary" id="backToStep1">戻る</button>
+                <button class="btn btn-primary" id="goToStep3" disabled>次へ</button>
+            </div>
+        </div>
+
+        <!-- ステップ3: 画像検索・設定 -->
+        <div class="step-container" id="step3" style="display: none;">
+            <h2 class="step-title">ステップ3: 画像検索・設定</h2>
+            <div class="mb-3">
+                <label for="imageSearchQuery" class="form-label">検索キーワード</label>
+                <input type="text" class="form-control" id="imageSearchQuery" placeholder="検索キーワードを入力">
+            </div>
+            <div class="mb-3">
+                <label for="maxImages" class="form-label">取得する画像数（最大）</label>
+                <input type="number" class="form-control" id="maxImages" min="1" max="20" value="10">
+            </div>
+            <button class="btn btn-primary" id="searchImages">画像を検索</button>
+            
+            <div class="loading" id="loading3">
+                <div class="spinner-border loading-spinner text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>画像を検索中...</p>
+            </div>
+            
+            <div class="preview-container" id="imagePreviewContainer" style="display: none;">
+                <h4>検索結果</h4>
+                <div class="filter-buttons">
+                    <button class="btn btn-sm btn-outline-secondary" data-filter="none">フィルタなし</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-filter="grayscale">モノクロ</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-filter="sepia">セピア</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-filter="brightness">明るく</button>
+                    <button class="btn btn-sm btn-outline-secondary" data-filter="contrast">コントラスト強調</button>
+                </div>
+                <div id="imagePreviewList" class="d-flex flex-wrap"></div>
+            </div>
+            
+            <div class="mt-3">
+                <button class="btn btn-secondary" id="backToStep2">戻る</button>
+                <button class="btn btn-primary" id="goToStep4" disabled>次へ</button>
+            </div>
+        </div>
+
+        <!-- ステップ4: 動画生成 -->
+        <div class="step-container" id="step4" style="display: none;">
+            <h2 class="step-title">ステップ4: 動画生成</h2>
+            <div class="mb-3">
+                <label for="slideDuration" class="form-label">1枚あたりの表示時間（秒）</label>
+                <input type="number" class="form-control" id="slideDuration" min="1" max="10" value="5" step="0.5">
+            </div>
+            <div class="mb-3">
+                <label for="bgmFile" class="form-label">BGM（オプション）</label>
+                <input type="file" class="form-control" id="bgmFile" accept="audio/*">
+            </div>
+            <button class="btn btn-primary" id="generateVideo">動画を生成</button>
+            
+            <div class="loading" id="loading4">
+                <div class="spinner-border loading-spinner text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p>動画を生成中...</p>
+            </div>
+            
+            <div class="preview-container" id="videoPreviewContainer" style="display: none;">
+                <h4>生成された動画</h4>
+                <video controls width="100%" id="videoPreview"></video>
+                <div class="mt-3">
+                    <a href="#" class="btn btn-success" id="downloadVideo" download>動画をダウンロード</a>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <button class="btn btn-secondary" id="backToStep3">戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // セッション情報
+        let sessionData = {
+            sessionId: null,
+            comments: [],
+            introAudioPath: null,
+            commentAudioPaths: [],
+            imagePaths: [],
+            selectedImagePaths: []
+        };
+
+        // 利用可能な音声モデル
+        const availableVoices = {
+            openai: ["alloy", "echo", "fable", "onyx", "nova", "shimmer"],
+            fish_audio: ["ja-JP-female-1", "ja-JP-female-2", "ja-JP-male-1", "ja-JP-male-2"]
+        };
+
+        // ステップ1: URL入力
+        document.getElementById('urlForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const url = document.getElementById('urlInput').value;
+            const maxComments = document.getElementById('maxComments').value;
+            const shortenIntro = document.getElementById('shortenIntro').checked;
+            
+            // ローディング表示
+            document.getElementById('loading1').style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/extract-comments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: url,
+                        max_comments: parseInt(maxComments),
+                        shorten_intro: shortenIntro
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('コメント抽出に失敗しました');
+                }
+                
+                const data = await response.json();
+                
+                // セッション情報を保存
+                sessionData.sessionId = data.session_id;
+                sessionData.comments = data.comments;
+                
+                // ステップ2の表示を更新
+                document.getElementById('threadTitle').textContent = data.title;
+                document.getElementById('introText').textContent = data.intro_text;
+                
+                // 話者選択肢を設定
+                updateVoiceSelectors();
+                
+                // コメントリストを表示
+                const commentListElement = document.getElementById('commentList');
+                commentListElement.innerHTML = '';
+                
+                data.comments.forEach((comment, index) => {
+                    const commentElement = document.createElement('div');
+                    commentElement.className = 'comment-item';
+                    commentElement.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-8">
+                                <p><strong>${comment.user || '名無しさん'}</strong>: ${comment.text}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="voice-selector">
+                                    <select class="form-select comment-voice" data-index="${index}"></select>
+                                </div>
+                                <div class="preview-container comment-audio-preview" style="display: none;">
+                                    <audio controls class="audio-preview comment-audio"></audio>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    commentListElement.appendChild(commentElement);
+                });
+                
+                // 話者選択肢を更新
+                updateVoiceSelectors();
+                
+                // ステップ1を非表示、ステップ2を表示
+                document.getElementById('step1').style.display = 'none';
+                document.getElementById('step2').style.display = 'block';
+                
+            } catch (error) {
+                alert('エラー: ' + error.message);
+            } finally {
+                document.getElementById('loading1').style.display = 'none';
+            }
+        });
+
+        // 話者選択肢を更新
+        function updateVoiceSelectors() {
+            const engine = document.getElementById('ttsEngine').value;
+            const voices = availableVoices[engine];
+            
+            // イントロ用の話者選択肢
+            const introVoiceElement = document.getElementById('introVoice');
+            introVoiceElement.innerHTML = '';
+            
+            voices.forEach(voice => {
+                const option = document.createElement('option');
+                option.value = voice;
+                option.textContent = voice;
+                introVoiceElement.appendChild(option);
+            });
+            
+            // コメント用の話者選択肢
+            const commentVoiceElements = document.querySelectorAll('.comment-voice');
+            commentVoiceElements.forEach(element => {
+                element.innerHTML = '';
+                
+                voices.forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice;
+                    option.textContent = voice;
+                    element.appendChild(option);
+                });
+            });
+        }
+
+        // TTSエンジン変更時に話者選択肢を更新
+        document.getElementById('ttsEngine').addEventListener('change', updateVoiceSelectors);
+
+        // 話者をランダム割り当て
+        document.getElementById('randomizeVoices').addEventListener('click', function() {
+            const engine = document.getElementById('ttsEngine').value;
+            const voices = availableVoices[engine];
+            
+            // イントロ用の話者をランダムに選択
+            const introVoiceElement = document.getElementById('introVoice');
+            const randomIntroVoice = voices[Math.floor(Math.random() * voices.length)];
+            introVoiceElement.value = randomIntroVoice;
+            
+            // コメント用の話者をランダムに選択（連続して同じ声が使われないように）
+            const commentVoiceElements = document.querySelectorAll('.comment-voice');
+            let lastVoice = randomIntroVoice;
+            
+            commentVoiceElements.forEach(element => {
+                let availableVoices = voices.filter(v => v !== lastVoice);
+                if (availableVoices.length === 0) {<response clipped><NOTE>To save on context only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE>

@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>要件分析 - 5ch/X コメント抽出・動画生成アプリ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            padding-bottom: 20px;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+        .header {
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e5e5e5;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e5e5;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1>5ch/X コメント抽出・動画生成アプリ</h1>
+                    <h2 class="text-muted">要件分析</h2>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="../index.html" class="btn btn-outline-primary">ホームに戻る</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>1. 背景・目的</h2>
+            <p>本システムは、5chのスレッドやX(Twitter)の投稿・スレッドURLを入力すると、そのコメントを抽出・音声合成し、画像を背景にスライド形式で動画を生成するWEBアプリケーションです。以下を目的とします。</p>
+            <ul>
+                <li>5chやX(Twitter)等からのコメント自動抽出による効率的なコンテンツ作成</li>
+                <li>自動または手動で選択可能な多様な音声(gpt-4o-mini-tts / fish.audio)によるナレーション生成</li>
+                <li>Google画像検索から取得した背景画像を用いた簡易的な動画編集と書き出し</li>
+                <li>無料または低コストでの運用を想定</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>2. システム概要</h2>
+            
+            <h3>2.1 コメント抽出機能</h3>
+            <ul>
+                <li>5chスレッドURLまたはX(Twitter)の投稿URLを入力し、コメント一覧を取得する。</li>
+                <li>必要な認証情報(Twitter APIキーなど)はユーザーに設定してもらう。</li>
+                <li>5chの場合、1コメ（※スレ本文）を動画最初のイントロとして使用する。</li>
+                <li>ただし、イントロ用テキストが音声生成で25秒を超える場合は自動で短縮し、短めの導入文にする。</li>
+            </ul>
+
+            <h3>2.2 音声合成機能 (TTS)</h3>
+            <ul>
+                <li>デフォルトでOpenAIの gpt-4o-mini-tts を使用する。</li>
+                <li>設定画面にてfish.audioのTTSに切り替え可能。</li>
+                <li>コメント単位で話者を指定可能（システム側で話者一覧を保持）。</li>
+                <li>「連続して同じ声が使われない」ロジックを実装し、ランダム割り当てにも対応。</li>
+            </ul>
+
+            <h3>2.3 画像検索・ダウンロード機能</h3>
+            <ul>
+                <li>Google画像検索を利用して、入力されたキーワード（スレッドタイトル等）に関連する画像を一括ダウンロードする機能。</li>
+                <li>取得した画像一覧をフロント画面でプレビューし、不要な画像は削除可能。</li>
+                <li>画像に対し一括でフィルタ（モノクロ/セピアなど）をかけられる。</li>
+            </ul>
+
+            <h3>2.4 スライドショー生成機能</h3>
+            <ul>
+                <li>選択された背景画像を順番に並べたスライドショーを作成。</li>
+                <li>1枚あたりの表示秒数を任意で設定可能。</li>
+                <li>音声データ（合成したコメント音声）とBGMを合わせ、最終的に動画として出力する。</li>
+            </ul>
+
+            <h3>2.5 動画編集機能</h3>
+            <ul>
+                <li>diffusionstudio/core (GitHubリポジトリ) をバックエンドで利用し、複数のメディア（音声、画像、BGM）を合成して動画を生成する。</li>
+                <li>字幕生成（太めのゴシックフォント／位置・サイズのカスタム対応）。</li>
+                <li>イントロ用のコメント音声を冒頭に配置。</li>
+                <li>生成した動画をMP4形式でダウンロード可能。</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>3. 主要機能要件</h2>
+            
+            <h3>3.1 コメント抽出</h3>
+            <h4>3.1.1 入力</h4>
+            <ul>
+                <li>ユーザーがWEB UI上で5chスレッドURLまたはX(Twitter)投稿URLを入力。</li>
+                <li>取得件数の指定、抽出範囲の指定（例：直近xx件など）を可能にする。</li>
+            </ul>
+
+            <h4>3.1.2 抽出ロジック</h4>
+            <ul>
+                <li>5chの場合: 1コメをイントロとして使用。25秒を超える想定の場合は自動要約などで短縮（ルールは要検討：最大○○文字切り捨てなど）。</li>
+                <li>X(Twitter)の場合: 指定投稿のリプライを取得し、各コメントテキストとしてリスト化。</li>
+                <li>抽出成功・失敗時のエラーハンドリングを行う（例：スレッドが見つからない、API上限、非公開アカウント等）。</li>
+            </ul>
+
+            <h4>3.1.3 保存形式</h4>
+            <p>コメントデータをJSON等の形式でフロントエンド側に返却。以下のような構造を想定：</p>
+            <pre><code>{
+  "intro_text": "～～～",
+  "comments": [
+    {"text": "コメント1", "user": "XXX", ...},
+    {"text": "コメント2", "user": "YYY", ...}
+  ]
+}</code></pre>
+
+            <h3>3.2 音声合成 (TTS)</h3>
+            <h4>3.2.1 デフォルト音声エンジン</h4>
+            <ul>
+                <li>OpenAI gpt-4o-mini-tts を標準採用。</li>
+                <li>音声モデル選択、速度・ピッチなどのパラメータ調整が可能（gpt-4o-mini-tts が対応している範囲内）。</li>
+            </ul>
+
+            <h4>3.2.2 オプション音声エンジン</h4>
+            <ul>
+                <li>fish.audio を利用可能に。</li>
+                <li>設定画面でエンジンを切り替え。</li>
+                <li>fish.audioの場合、APIキー等の事前準備が必要。</li>
+            </ul>
+
+            <h4>3.2.3 話者割り当て</h4>
+            <ul>
+                <li>フロントエンド上で各コメントごとに話者（例：男性1/女性1など）を手動選択、または自動ランダム割り当て。</li>
+                <li>同じ話者が連続しないようにロジックを組む（完全に同一の話者設定を連続で選ばない）。</li>
+            </ul>
+
+            <h4>3.2.4 出力管理</h4>
+            <ul>
+                <li>音声合成結果はバックエンドで管理し、再生確認用URLをフロントに返却。</li>
+                <li>DBまたはファイルシステムに音声ファイルを一時保存（削除タイミングは要検討）。</li>
+            </ul>
+
+            <h3>3.3 画像検索・ダウンロード</h3>
+            <h4>3.3.1 Google画像検索</h4>
+            <ul>
+                <li>Apify等の外部APIを利用して検索、取得。</li>
+                <li>キーワードはユーザーが指定（例：スレッドタイトルや話題となる単語等）。</li>
+                <li>ダウンロードできる最大枚数をシステム設定で制御（APIの制限考慮）。</li>
+            </ul>
+
+            <h4>3.3.2 画像管理</h4>
+            <ul>
+                <li>ダウンロード後、サムネイル一覧をフロントに表示。</li>
+                <li>不要な画像をUI上で削除可能。</li>
+                <li>選択した画像のみを最終的に利用。</li>
+                <li>画像へのフィルタ処理(モノクロ / セピア / 明度調整 など)を一括適用する機能。</li>
+            </ul>
+
+            <h4>3.3.3 保存先</h4>
+            <ul>
+                <li>画像ファイルはサーバーの一時ディレクトリ (例：/temp/images/...) に保存。</li>
+                <li>ユーザー単位で区別（セッションID等で管理）。</li>
+            </ul>
+
+            <h3>3.4 スライドショー生成</h3>
+            <h4>3.4.1 フロントエンドUI</h4>
+            <ul>
+                <li>画像一覧から利用する順序をドラッグ＆ドロップで変更可能。</li>
+                <li>1枚あたりの表示秒数を指定。</li>
+                <li>フィルタ処理適用後、プレビュー再生できる仕組み（簡易プレビュー）。</li>
+            </ul>
+
+            <h4>3.4.2 動画化の流れ</h4>
+            <ul>
+                <li>選択された画像と合成する音声データ・BGMを指定してサーバーに送信。</li>
+                <li>バックエンド側でdiffusionstudio/core の機能を利用し、動画生成を行う。</li>
+                <li>生成完了後、動画ファイルのダウンロードリンクを返却。</li>
+            </ul>
+
+            <h4>3.4.3 字幕表示</h4>
+            <ul>
+                <li>字幕は音声合成に対応するコメントテキストを表示。</li>
+                <li>字幕スタイル：太めのゴシック、サイズ・カラー・位置は設定ファイルで定義可能。</li>
+                <li>（オプション）簡易的なテキストの縁取り機能や、改行・中央寄せ機能を備える。</li>
+            </ul>
+
+            <h3>3.5 BGM合成</h3>
+            <h4>3.5.1 BGM指定</h4>
+            <ul>
+                <li>あらかじめアップロードされたBGMファイル、またはサンプル音源を選択可能。</li>
+                <li>ボリューム・フェードイン/フェードアウト設定の可否を検討。</li>
+            </ul>
+
+            <h4>3.5.2 最終動画への合成</h4>
+            <ul>
+                <li>音声（ナレーション）とBGMを重ね、動画全体で調整（ナレーションが聞こえやすいようBGMを下げる等の処理）。</li>
+                <li>生成過程でエラーが発生した場合、リトライや通知を行う。</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>4. 非機能要件</h2>
+            <h3>4.1 パフォーマンス</h3>
+            <ul>
+                <li>同時アクセス数が増えた場合のスケーラビリティを考慮（音声合成や動画変換はCPU/GPU負荷が大きい）。</li>
+                <li>バックエンドでジョブ管理し、キューイングやワーカーを用いた非同期処理を検討。</li>
+            </ul>
+
+            <h3>4.2 セキュリティ</h3>
+            <ul>
+                <li>X(Twitter) APIキーやfish.audio APIキーなどの機密情報は安全に管理。</li>
+                <li>外部API呼び出しのリクエスト結果や画像ファイルを扱う際のセキュリティリスクに留意。</li>
+            </ul>
+
+            <h3>4.3 拡張性</h3>
+            <ul>
+                <li>コメント抽出ソースが増えた場合(例：YouTubeコメント等)にも対応しやすい構造とする。</li>
+                <li>音声エンジンの追加もモジュール化してスムーズに差し替えられるよう設計。</li>
+            </ul>
+
+            <h3>4.4 障害対応</h3>
+            <ul>
+                <li>音声合成や画像ダウンロード中にエラーが発生した場合、原因と対処方法をユーザーに提示。</li>
+                <li>生成ジョブの進捗状況を可視化する機能を検討。</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>5. システム構成イメージ</h2>
+            <div class="mb-4">
+                <h3>システムフロー</h3>
+                <ul>
+                    <li><strong>ユーザー</strong>: ブラウザUIからURL入力・コメント抽出リクエスト、音声生成・画像検索リクエストを行う</li>
+                    <li><strong>WEBサーバー/バックエンド</strong>: リクエストを受け付け、各モジュールに処理を振り分ける</li>
+                    <li><strong>コメント抽出モジュール</strong>: 5ch/X APIを使用してコメントを抽出</li>
+                    <li><strong>音声合成モジュール</strong>: gpt-4o-mini-tts/fish.audioを使用して音声を合成</li>
+                    <li><strong>画像検索モジュール</strong>: Apify/Google Imagesを使用して画像を検索</li>
+                    <li><strong>スライドショー生成・動画合成モジュール</strong>: diffusionstudio/coreを使用して動画を生成</li>
+                    <li><strong>ユーザー</strong>: 生成された動画をダウンロード</li>
+                </ul>
+            </div>
+
+            <div>
+                <h3>技術スタック</h3>
+                <ul>
+                    <li><strong>フロントエンド</strong>: Vue/Reactなどで構築し、ユーザーからの入力や操作を受け付ける。</li>
+                    <li><strong>バックエンド</strong>: Node.js/Pythonなど。
+                        <ul>
+                            <li>コメント抽出API呼び出し</li>
+                            <li>音声合成API呼び出し</li>
+                            <li>画像検索API呼び出し</li>
+                            <li>動画合成ライブラリ(diffusionstudio/core)を用いた動画生成</li>
+                        </ul>
+                    </li>
+                    <li><strong>外部サービス</strong>: X(Twitter) API、5ch HTML解析、Google Images / Apify、fish.audioのTTS、OpenAIのgpt-4o-mini-tts</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>6. 運用・管理要件</h2>
+            <h3>6.1 APIキー管理</h3>
+            <ul>
+                <li>X(Twitter) APIやfish.audio / OpenAI / ApifyなどのAPIキーを管理画面または環境変数で設定。</li>
+                <li>鍵は平文で外部に漏れないようにする。</li>
+            </ul>
+
+            <h3>6.2 ログ管理</h3>
+            <ul>
+                <li>コメント取得の成否、音声生成状況、動画生成ログを記録。</li>
+                <li>UI上で管理者向けに確認できるページを用意するか検討。</li>
+            </ul>
+
+            <h3>6.3 データ保持期間</h3>
+            <ul>
+                <li>生成された音声・画像・動画などのファイルは、一定期間（例：7日）経過後自動削除するなど運用ルールを決める。</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>7. 画面遷移・UI要件（例）</h2>
+            <h3>7.1 トップページ</h3>
+            <ul>
+                <li>5chスレッドまたはX(Twitter)のURL入力欄</li>
+                <li>「コメント抽出」ボタン</li>
+                <li>取得したコメント一覧を表示する画面へ遷移</li>
+            </ul>
+
+            <h3>7.2 コメント編集画面</h3>
+            <ul>
+                <li>イントロコメント（1コメ）と通常コメントのリスト表示</li>
+                <li>各コメントに対する話者選択（プルダウン／自動割り当て）</li>
+                <li>音声合成実行ボタン、音声プレビュー</li>
+            </ul>
+
+            <h3>7.3 画像設定画面</h3>
+            <ul>
+                <li>検索キーワード入力とダウンロードボタン</li>
+                <li>ダウンロード後の画像一覧表示・削除・フィルタ一括適用</li>
+                <li>スライドショーでの表示順（ドラッグ＆ドロップで並び替え）</li>
+                <li>1枚あたり表示秒数の設定</li>
+            </ul>
+
+            <h3>7.4 BGM & 動画生成画面</h3>
+            <ul>
+                <li>BGMファイルのアップロードまたは選択</li>
+                <li>全コメント音声＋BGM＋画像のプレビュー確認</li>
+                <li>最終動画の生成開始ボタン</li>
+                <li>生成完了後の動画ダウンロードリンク表示</li>
+            </ul>
+
+            <h3>7.5 設定画面</h3>
+            <ul>
+                <li>デフォルト音声合成エンジンの選択（gpt-4o-mini-tts / fish.audio）</li>
+                <li>APIキーの登録/編集</li>
+                <li>動画の解像度や字幕のフォントサイズ設定など</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>8. 技術要件まとめ</h2>
+            <ul>
+                <li><strong>フロントエンド</strong>:
+                    <ul>
+                        <li>フレームワーク: React / Vue / Angular など</li>
+                        <li>コンポーネント: コメントリスト、画像プレビュー、音声再生コンポーネント</li>
+                    </ul>
+                </li>
+                <li><strong>バックエンド</strong>:
+                    <ul>
+                        <li>言語: Python or Node.js を想定（diffusionstudio/core がPython想定ならPythonベースが望ましい）</li>
+                        <li>フレームワーク: Flask / FastAPI / Express など</li>
+                        <li>ライブラリ: moviepy, pillow, pydub, requests, ormsgpack, fish-audio-sdk, OpenAI SDK など</li>
+                        <li>動画編集: diffusionstudio/core を採用</li>
+                    </ul>
+                </li>
+                <li><strong>データベース</strong>:
+                    <ul>
+                        <li>必要に応じてRDB or NoSQL を選択（簡易でよければファイルベースでも可）</li>
+                    </ul>
+                </li>
+                <li><strong>インフラ</strong>:
+                    <ul>
+                        <li>小規模ならVPS / クラウド上のDockerコンテナ等</li>
+                        <li>音声合成や動画生成のジョブが多くなると負荷対策・オートスケールを検討</li>
+                    </ul>
+                </li>
+                <li><strong>認証・セキュリティ</strong>:
+                    <ul>
+                        <li>OAuth認証(X/Twitter)、APIキー管理、HTTPS通信必須</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>9. 今後の拡張計画 (任意)</h2>
+            <ul>
+                <li>YouTubeコメントや他SNSコメントの抽出への対応</li>
+                <li>生成コンテンツのSNSシェア機能</li>
+                <li>テロップの細かいデザインカスタム(アニメーション、テキスト表示タイミング調整など)</li>
+                <li>音声合成の精度向上(表現力、感情パラメータなどの追加)</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>10. リスク・留意事項</h2>
+            <h3>著作権・肖像権</h3>
+            <ul>
+                <li>取得画像やコメントの再利用には注意が必要。</li>
+                <li>動画公開時、権利関係を遵守するようユーザーに明示。</li>
+            </ul>
+
+            <h3>APIの利用制限</h3>
+            <ul>
+                <li>Twitter APIやApifyの無料枠を超過しない運用設計。</li>
+                <li>fish.audioやOpenAI TTSの料金発生ポイントを管理。</li>
+            </ul>
+
+            <h3>ストレージコスト</h3>
+            <ul>
+                <li>大量の画像・音声ファイルを長期保存するとコスト上昇。自動削除や容量上限を設定。</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>© 2025 5ch/X コメント抽出・動画生成アプリ</p>
+            <p>
+                <a href="../index.html" class="text-decoration-none">ホーム</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

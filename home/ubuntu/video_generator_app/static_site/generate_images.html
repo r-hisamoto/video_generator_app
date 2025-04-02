@@ -1,0 +1,161 @@
+/* 
+ * ダミー画像生成用のHTMLファイル
+ * 各ステップのプレースホルダー画像を作成します
+ */
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ダミー画像生成</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .image-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+        .placeholder {
+            width: 800px;
+            height: 450px;
+            background-color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        .placeholder::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #f3f3f3 25%, transparent 25%, transparent 75%, #f3f3f3 75%, #f3f3f3),
+                        linear-gradient(45deg, #f3f3f3 25%, transparent 25%, transparent 75%, #f3f3f3 75%, #f3f3f3);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            opacity: 0.5;
+        }
+        .placeholder h2 {
+            font-size: 24px;
+            margin: 0 0 10px 0;
+            z-index: 1;
+        }
+        .placeholder p {
+            font-size: 16px;
+            margin: 0;
+            text-align: center;
+            max-width: 80%;
+            z-index: 1;
+        }
+        .icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+            z-index: 1;
+        }
+        .main-screenshot {
+            background-color: #e8f4fc;
+        }
+        .step1 {
+            background-color: #e8fcf4;
+        }
+        .step2 {
+            background-color: #fcf4e8;
+        }
+        .step3 {
+            background-color: #f4e8fc;
+        }
+        .step4 {
+            background-color: #fcf8e8;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="image-container">
+        <div class="placeholder main-screenshot">
+            <div class="icon">🎬</div>
+            <h2>5ch/X コメント抽出・動画生成アプリ</h2>
+            <p>コメントから自動で動画コンテンツを生成するWEBアプリケーション</p>
+        </div>
+        
+        <div class="placeholder step1">
+            <div class="icon">📝</div>
+            <h2>ステップ1: URL入力</h2>
+            <p>5chスレッドまたはX(Twitter)の投稿URLを入力してコメントを抽出</p>
+        </div>
+        
+        <div class="placeholder step2">
+            <div class="icon">🔊</div>
+            <h2>ステップ2: 音声生成</h2>
+            <p>抽出したコメントに話者を割り当て、高品質な音声ナレーションを生成</p>
+        </div>
+        
+        <div class="placeholder step3">
+            <div class="icon">🖼️</div>
+            <h2>ステップ3: 画像選択</h2>
+            <p>関連キーワードで画像を検索し、フィルタを適用して背景画像を選択</p>
+        </div>
+        
+        <div class="placeholder step4">
+            <div class="icon">🎞️</div>
+            <h2>ステップ4: 動画生成</h2>
+            <p>スライド表示時間やBGMを設定し、完成した動画をダウンロード</p>
+        </div>
+        
+        <button id="downloadBtn">画像をダウンロード</button>
+    </div>
+
+    <script>
+        document.getElementById('downloadBtn').addEventListener('click', async () => {
+            const placeholders = document.querySelectorAll('.placeholder');
+            const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+            
+            for (let i = 0; i < placeholders.length; i++) {
+                const element = placeholders[i];
+                const canvas = await html2canvas(element);
+                const imgData = canvas.toDataURL('image/jpeg');
+                
+                const link = document.createElement('a');
+                let filename;
+                
+                if (i === 0) {
+                    filename = 'main_screenshot.jpg';
+                } else {
+                    filename = `step${i}.jpg`;
+                }
+                
+                link.download = filename;
+                link.href = imgData;
+                link.click();
+                
+                await delay(500); // 少し待機して連続ダウンロードによるブラウザの制限を回避
+            }
+        });
+    </script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+</body>
+</html>

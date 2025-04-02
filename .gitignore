@@ -1,0 +1,23 @@
+# 環境設定
+.env
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# システムファイル
+.DS_Store
+Thumbs.db
+
+# 一時ファイル・生成ファイル
+static/temp/
+static/videos/
+static/images/
+static/audio/
+
+# ログファイル
+*.log
+
+# 開発環境設定
+.idea/
+.vscode/
